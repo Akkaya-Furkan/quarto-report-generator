@@ -1,3 +1,4 @@
 # Preserve generated artifact bytes so recorded SHA-256 values remain valid.
 examples/data/*.csv -text whitespace=cr-at-eol
 examples/reports/*.html -text -whitespace linguist-generated=true
+examples/reports/*.pdf binary linguist-generated=true
