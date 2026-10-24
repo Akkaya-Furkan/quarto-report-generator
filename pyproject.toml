@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["matplotlib>=3.9,<4", "jupyter>=1.1,<2", "PyYAML>=6,<7", "quarto-cli>=1.8,<2", "papermill>=2.6,<3"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "beautifulsoup4>=4.12,<5"]
+dev = ["pytest>=8,<10", "beautifulsoup4>=4.12,<5", "pypdf>=6,<7"]
 
 [project.scripts]
 measurement-report = "quarto_report.cli:main"

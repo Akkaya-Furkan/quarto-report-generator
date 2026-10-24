@@ -6,8 +6,8 @@ format:
     embed-resources: true
     toc: true
     format-links: false
-  pdf:
-    pdf-engine: xelatex
+  typst:
+    papersize: a4
 execute:
   echo: false
   warning: false

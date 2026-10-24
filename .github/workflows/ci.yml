@@ -18,13 +18,17 @@ jobs:
           python -m pip install -r requirements-lock.txt
           python -m pip install --no-deps -e .
       - name: Verify Quarto
-        run: quarto check jupyter
+        run: |
+          quarto check jupyter
+          quarto typst --version
       - name: Test validation and real parameterised rendering
         run: python -m pytest -v
       - name: Render example reports
         run: |
           measurement-report examples/data/measurements.csv --group reference --output build/reference.html --title 'Reference measurements'
           measurement-report examples/data/measurements.csv --group comparison --output build/comparison.html --title 'Comparison measurements'
+          measurement-report examples/data/measurements.csv --group reference --format pdf --output build/reference-pdf.pdf --title 'Reference measurements'
+          python -c "from pathlib import Path; from pypdf import PdfReader; p = Path('build/reference-pdf.pdf'); print(f'PDF pages: {len(PdfReader(p).pages)}, bytes: {p.stat().st_size}'); assert p.stat().st_size > 0"
       - uses: actions/upload-artifact@v4
         with:
           name: measurement-reports

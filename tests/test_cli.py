@@ -57,11 +57,62 @@ def test_no_quarto(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_pdf_without_latex(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr('quarto_report.cli.shutil.which', lambda name: '/quarto' if name == 'quarto' else None)
+def test_pdf_renderer_failure(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr('quarto_report.cli.shutil.which', lambda _: '/fake/quarto')
+    monkeypatch.setattr('quarto_report.cli.subprocess.run', lambda *a, **kw:
+                        SimpleNamespace(returncode=1, stderr='Typst unavailable', stdout=''))
     assert main([str(DATA), '--output', str(tmp_path / 'out.pdf'), '--format', 'pdf']) == 2
-    assert 'PDF not done' in capsys.readouterr().err
+    assert 'Typst unavailable' in capsys.readouterr().err
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('artifact', [None, b''])
+def test_pdf_missing_or_empty_is_not_published(tmp_path, monkeypatch, artifact):
+    monkeypatch.setattr('quarto_report.cli.shutil.which', lambda _: '/fake/quarto')
+
+    def empty_renderer(*args, **kwargs):
+        if artifact is not None:
+            (Path(kwargs['cwd']) / 'report.pdf').write_bytes(artifact)
+        return SimpleNamespace(returncode=0, stdout='', stderr='')
+
+    monkeypatch.setattr('quarto_report.cli.subprocess.run', empty_renderer)
+    assert main([str(DATA), '--output', str(tmp_path / 'out.pdf'), '--format', 'pdf']) == 2
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize('group, expected', [('reference', 14), ('comparison', 18)])
+def test_real_pdf_render(tmp_path, group, expected):
+    from pypdf import PdfReader
+
+    output = tmp_path / f'{group}.pdf'
+    proc = subprocess.run(['measurement-report', str(DATA), '--format', 'pdf',
+                           '--output', str(output), '--group', group, '--min-dose', '2',
+                           '--title', f'{group} PDF profile'], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    assert output.stat().st_size > 0
+    assert output.read_bytes().startswith(b'%PDF-')
+    reader = PdfReader(output)
+    assert len(reader.pages) > 0
+    text = ''.join(page.extract_text() for page in reader.pages)
+    metadata = json.loads(output.with_suffix('.json').read_text())
+    assert f'{group} PDF profile' in text
+    assert f'{expected:.6f}' in text
+    assert 'Selected observations: 9' in text
+    assert 'Method and limitations' in text
+    assert metadata['input_sha256'] in text
+    assert metadata['selected_rows'] == 9
+    assert metadata['summary'][0]['mean'] == expected
+    # Typst embeds the plot as vector PDF Form XObjects, not raster images.
+    plots = []
+    for page in reader.pages:
+        objects = page['/Resources'].get('/XObject', {})
+        for operands, operator in page.get_contents().operations:
+            if operator == b'Do':
+                obj = objects[operands[0]].get_object()
+                if obj['/Subtype'] in {'/Form', '/Image'}:
+                    plots.append(obj.get_data())
+    assert plots and all(plots)
 
 
 @pytest.mark.parametrize('args', [ ['--group', 'missing'], ['--min-dose', '100'],

@@ -36,31 +36,33 @@ group,dose,response
 
 Group labels must be nonempty. Dose and response must be finite numbers; dose must be nonnegative. Every input row is validated even if a filter would exclude it. Omit `--group` for all groups. `--min-dose` defaults to zero. `--title` changes the report heading. Use a new output path for each run: both the report and its `.json` sidecar must not already exist. Invalid data, empty selections, missing tools, and render failures return exit code 2 with an actionable error. `measurement-report --help` lists the options.
 
-To request PDF on a machine with XeLaTeX installed:
+To generate PDF using Quarto's bundled Typst engine (no TinyTeX, XeLaTeX, sudo, or separate Typst installation required):
 
 ```bash
-measurement-report examples/data/measurements.csv --format pdf --output build/measurements.pdf
+measurement-report examples/data/measurements.csv --format pdf \
+  --group reference --title "Reference measurements" --output build/measurements.pdf
+pdfinfo build/measurements.pdf
 ```
 
-**PDF not done:** XeLaTeX is unavailable in the validation environment. The verified deliverables are self-contained HTML files; PDF execution is unverified. The CLI gives an explicit error instead of silently changing the requested format.
+**PDF done:** `--format pdf` renders the template with `--to typst` and publishes a `.pdf` plus its JSON sidecar. [Quarto includes Typst](https://quarto.org/docs/output-formats/typst.html), so the pinned pip environment is sufficient. Activate `.venv` before running the CLI so `quarto` is on `PATH`. Renderer failures return exit code 2 without publishing a report or sidecar.
 
 ## Results
 
-The deterministic example contains 30 synthetic observations. The committed [reference report](examples/reports/reference.html) and [comparison report](examples/reports/comparison.html) each select 15 observations and contain 5 dose summaries. Download an HTML file and open it locally; GitHub's file viewer displays source. Each report has a companion JSON file in the same directory.
+The deterministic example contains 30 synthetic observations. The committed [reference report](examples/reports/reference.html) and [comparison report](examples/reports/comparison.html) each select 15 observations and contain 5 dose summaries. Download an HTML file and open it locally; GitHub's file viewer displays source. Each report has a companion JSON file in the same directory. The committed [reference PDF](examples/reports/reference-pdf.pdf) and [JSON sidecar](examples/reports/reference-pdf.json) select 15 observations across 5 doses. Local `pdfinfo` measured **2 A4 pages and 47,586 bytes**, produced by Typst 0.15.1; both pages were rendered to PNG and visually inspected. PDF bytes can vary with creation metadata and platform fonts.
 
 The real-render parameter test uses minimum dose 2: each selection contains 9 observations, and the first dose mean changes from 14 (reference) to 18 (comparison). The test reads these values from both rendered HTML tables and JSON sidecars, and checks an embedded plot and the input fingerprint. These are descriptive results of a synthetic formula, not an efficacy comparison.
 
-Local validation: **34/34 pytest cases passed** using Python 3.11.15 and pip-installed Quarto 1.10.19. Tests cover known statistics, group separation, deterministic data regeneration, malformed/empty CSV, nonfinite values, invalid cutoffs, empty selections, missing tools, output preservation, and rollback on sidecar write failure. The HTML layout was also inspected in headless Chrome.
+Local validation: **38/38 pytest cases passed** using Python 3.11.15 and pip-installed Quarto 1.10.19. Tests cover known statistics, group separation, deterministic data regeneration, malformed/empty CSV, nonfinite values, invalid cutoffs, empty selections, missing tools, output preservation, and rollback on sidecar write failure. Two actual PDF renders are parsed with pypdf to verify nonempty PDF files, pages, selected means, titles, observation counts, fingerprints, embedded plots, and matching JSON. Missing/empty PDF output and renderer failure must leave no published files. The HTML layout was also inspected in headless Chrome.
 
 ```bash
 python -m pytest -v
 python scripts/generate_example.py
 ```
 
-[GitHub Actions](.github/workflows/ci.yml) installs the pinned environment, runs the tests including two actual Quarto renders, and generates two additional example reports with JSON sidecars as a downloadable CI artifact. CI does not require LaTeX.
+[GitHub Actions](.github/workflows/ci.yml) installs the pinned environment, verifies the bundled Typst executable, runs the tests including 2 HTML and 2 PDF renders, and generates 2 HTML reports and 1 PDF report with their 3 JSON sidecars as a downloadable CI artifact. CI logs the PDF page count and byte size using pypdf. PDF tests are required and are not skipped: a missing/broken bundled Typst installation fails CI. CI does not require LaTeX or a system package installation; `pdfinfo` is an optional local inspection tool.
 
 ## Limitations
 
-This is descriptive reporting with arbitrary units. It performs no curve fitting, hypothesis testing, confidence interval calculation, or potency estimation. Error bars show sample standard deviation. A singleton has undefined SD and is displayed as NA. Values shown in the report are rounded; JSON retains numerical precision. The CSV fingerprint identifies the input bytes but does not establish experimental provenance. Finite inputs whose statistics overflow are rejected. The environment is pinned for Python 3.11 on Linux; other platforms and PDF rendering have not been validated. The report/sidecar pair is rolled back on ordinary write failures but is not a crash-atomic multi-file transaction. Very large input files and interactive dashboards are outside scope.
+This is descriptive reporting with arbitrary units. It performs no curve fitting, hypothesis testing, confidence interval calculation, or potency estimation. Error bars show sample standard deviation. A singleton has undefined SD and is displayed as NA. Values shown in the report are rounded; JSON retains numerical precision. The CSV fingerprint identifies the input bytes but does not establish experimental provenance. Finite inputs whose statistics overflow are rejected. The environment is pinned for Python 3.11 on Linux; HTML and Typst PDF rendering were validated locally on Linux; other platforms have not been validated. The XeLaTeX/TinyTeX route is not implemented or tested. The report/sidecar pair is rolled back on ordinary write failures but is not a crash-atomic multi-file transaction. Very large input files and interactive dashboards are outside scope.
 
 Quarto integration follows the official [parameter documentation](https://quarto.org/docs/computations/parameters.html), [render CLI documentation](https://quarto.org/docs/cli/render.html), and [pip package installation instructions](https://pypi.org/project/quarto-cli/).

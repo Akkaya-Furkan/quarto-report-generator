@@ -24,8 +24,6 @@ def render(input_path, output, group=None, min_dose=0.0, title="Measurement repo
     quarto = shutil.which("quarto")
     if not quarto:
         raise InputError("Quarto is missing; install the environment with pip install -e '.[dev]'.")
-    if format == "pdf" and not shutil.which("xelatex"):
-        raise InputError("PDF not done: XeLaTeX is unavailable; use --format html and an .html output.")
     result["parameters"]["title"] = title
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="measurement-report-") as folder:
@@ -39,7 +37,8 @@ def render(input_path, output, group=None, min_dose=0.0, title="Measurement repo
         params = dict(input_path=str(snapshot), group=group, min_dose=min_dose, report_title=title)
         (work / "params.yml").write_text(yaml.safe_dump(params), encoding="utf-8")
         env = dict(os.environ, QUARTO_PYTHON=sys.executable, MPLBACKEND="Agg")
-        command = [quarto, "render", "report.qmd", "--to", format, "--output", f"report.{format}",
+        engine = "typst" if format == "pdf" else "html"
+        command = [quarto, "render", "report.qmd", "--to", engine, "--output", f"report.{format}",
                    "--execute-params", "params.yml", "--no-execute-daemon"]
         completed = subprocess.run(command, cwd=work, env=env, capture_output=True, text=True)
         artifact = work / f"report.{format}"
@@ -70,7 +69,8 @@ def main(argv=None):
     parser.add_argument("--group", help="Exact group label; default: all groups")
     parser.add_argument("--min-dose", type=float, default=0.0, help="Inclusive nonnegative dose cutoff")
     parser.add_argument("--title", default="Measurement report")
-    parser.add_argument("--format", choices=["html", "pdf"], default="html")
+    parser.add_argument("--format", choices=["html", "pdf"], default="html",
+                        help="Output format; PDF uses Quarto's bundled Typst (no LaTeX required)")
     args = parser.parse_args(argv)
     try:
         result = render(args.input, args.output, args.group, args.min_dose, args.title, args.format)
