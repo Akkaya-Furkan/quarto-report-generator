@@ -1,0 +1,72 @@
+---
+title: "Parameterised measurement analysis"
+jupyter: python3
+format:
+  html:
+    embed-resources: true
+    toc: true
+    format-links: false
+  pdf:
+    pdf-engine: xelatex
+execute:
+  echo: false
+  warning: false
+  daemon: false
+---
+
+```{python}
+#| tags: [parameters]
+input_path = "input.csv"
+group = None
+min_dose = 0.0
+report_title = "Measurement report"
+```
+
+```{python}
+#| output: asis
+import re
+from IPython.display import display, Markdown
+from quarto_report.analysis import analyse
+
+def safe(value):
+    return re.sub(r'([\\`*_{}\[\]()<>#+.!|$~^-])', r'\\\1', str(value)).replace('\n', ' ').replace('\r', ' ')
+
+result = analyse(input_path, group, min_dose)
+print(f"## {safe(report_title)}\n")
+print("Descriptive analysis of supplied measurements. The bundled example is synthetic; no biological inference is intended.\n")
+print("## Selection and provenance\n")
+print(f"- Group: {safe(group) if group is not None else 'all groups'}")
+print(f"- Minimum dose (inclusive): {min_dose:g}")
+print(f"- Input observations: {result['input_rows']}")
+print(f"- Selected observations: {result['selected_rows']}")
+print(f"- Input SHA-256: `{result['input_sha256']}`\n")
+print("## Summary by group and dose\n")
+print("| Group | Dose | Count | Mean response | Sample SD |")
+print("|:--|--:|--:|--:|--:|")
+for row in result['summary']:
+    sd = 'NA' if row['sd'] is None else f"{row['sd']:.6f}"
+    print(f"| {safe(row['group'])} | {row['dose']:g} | {row['count']} | {row['mean']:.6f} | {sd} |")
+```
+
+## Measurement profile
+
+```{python}
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(8, 4))
+for label in sorted({row['group'] for row in result['summary']}):
+    points = [row for row in result['summary'] if row['group'] == label]
+    ax.plot([r['dose'] for r in points], [r['mean'] for r in points], 'o-', label=label)
+    repeated = [r for r in points if r['sd'] is not None]
+    if repeated:
+        ax.errorbar([r['dose'] for r in repeated], [r['mean'] for r in repeated],
+                    yerr=[r['sd'] for r in repeated], fmt='none', capsize=4)
+ax.set(xlabel='Dose (arbitrary units)', ylabel='Response (arbitrary units)')
+ax.legend()
+ax.grid(alpha=0.25)
+fig.tight_layout()
+plt.show()
+```
+
+## Method and limitations
+
+Each group and dose is summarised independently using the arithmetic mean and sample standard deviation. Error bars show sample standard deviation, not confidence intervals. Singleton doses have undefined standard deviation (NA) and no error bar. Connecting lines are visual guides. There is no curve fitting, hypothesis test, potency estimate, or claim about experimental efficacy. Dose and response units must be established by the data provider; this template uses arbitrary units. Summary display values are rounded; the accompanying JSON preserves numerical precision. The input fingerprint identifies the original CSV bytes.

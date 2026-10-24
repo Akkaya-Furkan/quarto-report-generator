@@ -1,0 +1,32 @@
+name: CI
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test-and-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Python environment and Quarto through pip
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-lock.txt
+          python -m pip install --no-deps -e .
+      - name: Verify Quarto
+        run: quarto check jupyter
+      - name: Test validation and real parameterised rendering
+        run: python -m pytest -v
+      - name: Render example reports
+        run: |
+          measurement-report examples/data/measurements.csv --group reference --output build/reference.html --title 'Reference measurements'
+          measurement-report examples/data/measurements.csv --group comparison --output build/comparison.html --title 'Comparison measurements'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: measurement-reports
+          path: build/
+          if-no-files-found: error
